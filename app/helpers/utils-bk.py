@@ -5,13 +5,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 import pickle
 import sys
-import re
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#data = pickle.load(open(sys.path[0] + '/app/models/bert-pretrained-data.pk', 'rb'))
-with open('./models/bert-pretrained-data.pkl', 'rb') as f:
-    data = pickle.load(f)
-    
+data = pickle.load(open('./app/models/bert-pretrained-data.pkl', 'rb'))
 n_layers = data['n_layers']
 n_heads = data['n_heads']
 d_model = data['d_model']
@@ -145,6 +141,65 @@ class BERT(nn.Module):
 
         return output, logits_lm, logits_nsp
 
+
+# class SimpleTokenizer:
+#     def __init__(self, word2id):
+#         self.word2id = word2id
+#         self.id2word = {v: k for k, v in self.word2id.items()}
+#       ncode(self, sentences):
+#         output = {}
+#         output['input_ids'] = []
+#         output['attention_mask'] = []
+#         for sentence in sentences:
+#             input_ids = [self.word2id.get(word, self.word2id['[UNK]']) for word in sentence.split()]
+#             n_pad = self.max_len - len(input_ids)
+#             input_ids.extend([0] * n_pad)
+#             att_mask = [1 if idx != 0 else 0 for idx in input_ids]  # Create attention mask
+#             output['input_ids'].append(torch.tensor(input_ids))  # Convert to tensor
+#             output['attention_mask'].append(torch.tensor(att_mask))  # Convert to tensor
+#         return output
+
+#     def decode(self, ids):
+#         return ' '.join([self.id2word.get(idx.item(), '[UNK]') for idx in ids])
+
+# class SimpleTokenizer:
+#     def __init__(self, word2id, max_len=32):
+#         # Ensure [UNK] token exists
+#         if "[UNK]" not in word2id:
+#             word2id["[UNK]"] = len(word2id)  # Assign next available index
+
+#         self.word2id = word2id
+#         self.id2word = {v: k for k, v in self.word2id.items()}
+#         self.max_len = max_len  # Set max sequence length
+
+#     def encode(self, sentences):
+#         output = {'input_ids': [], 'attention_mask': []}
+#         unk_id = self.word2id["[UNK]"]
+#         pad_id = self.word2id["[PAD]"]
+#         vocab_size = len(self.word2id)  # Get vocabulary size
+
+#         for sentence in sentences:
+#             input_ids = [self.word2id.get(word, unk_id) for word in sentence.split()]
+#             input_ids = input_ids[:self.max_len]  # Truncate if too long
+#             n_pad = self.max_len - len(input_ids)
+#             input_ids.extend([pad_id] * n_pad)  # Pad sequence to max_len
+
+#             att_mask = [1] * (self.max_len - n_pad) + [0] * n_pad  # 1s for words, 0s for padding
+
+#             # 🔍 Debugging: Check for invalid indices
+#             for idx in input_ids:
+#                 if idx < 0 or idx >= vocab_size:
+#                     raise ValueError(f"Invalid token index {idx} (Vocabulary size: {vocab_size})")
+
+#             output['input_ids'].append(torch.tensor(input_ids))  # Convert to tensor
+#             output['attention_mask'].append(torch.tensor(att_mask))  # Convert to tensor
+
+#         return output
+
+#     def decode(self, ids):
+#         return ' '.join([self.id2word.get(int(idx), "[UNK]") for idx in ids])
+
+
 class SimpleTokenizer:
     def __init__(self, word2id):
         self.word2id = word2id
@@ -157,9 +212,6 @@ class SimpleTokenizer:
         output['input_ids'] = []
         output['attention_mask'] = []
         for sentence in sentences:
-            sentence = [x.lower() for x in sentence] #lower case
-            sentence = [re.sub("[.,!?\\-]", '', x) for x in sentence]
-            sentence = " ".join(sentence) #clean all symbols
             input_ids = [self.word2id.get(word, self.word2id['[UNK]']) for word in sentence.split()]
             n_pad = self.max_len - len(input_ids)
             input_ids.extend([0] * n_pad)
@@ -206,7 +258,6 @@ def mean_pool(token_embeds, attention_mask):
     return pool
 
 def calculate_similarity(model, tokenizer, sentence_a, sentence_b, device):
-    model.eval()
     # Tokenize and convert sentences to input IDs and attention masks
     inputs_a = tokenizer.encode(sentence_a)
     inputs_b = tokenizer.encode(sentence_b)
@@ -220,13 +271,12 @@ def calculate_similarity(model, tokenizer, sentence_a, sentence_b, device):
     # Extract token embeddings from BERT
     u, _, _ = model(inputs_ids_a, segment_ids, masked_pos)  # all token embeddings A = batch_size, seq_len, hidden_dim
     v, _, _ = model(inputs_ids_b, segment_ids, masked_pos)  # all token embeddings B = batch_size, seq_len, hidden_dim
-    print(v.shape)
+
     # Get the mean-pooled vectors
     u = mean_pool(u, attention_a).detach().cpu().numpy().reshape(-1)  # batch_size, hidden_dim
     v = mean_pool(v, attention_b).detach().cpu().numpy().reshape(-1)  # batch_size, hidden_dim
 
     # Calculate cosine similarity
-    print(v.shape)
-    similarity_score = cosine_similarity(u.reshape(1, -1), v)
+    similarity_score = cosine_similarity(u.reshape(1, -1), v.reshape(1, -1))[0, 0]
 
     return similarity_score

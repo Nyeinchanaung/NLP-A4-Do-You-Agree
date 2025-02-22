@@ -3,12 +3,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pickle
+import sys
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load pretrained model configurations
-with open("./app/models/bert-pretrained-data.pkl", "rb") as f:
+# with open("./app/models/bert-pretrained-data.pkl", "rb") as f:
+with open('./app/models/bert-pretrained-data.pkl', 'rb') as f:
     data = pickle.load(f)
 
 n_layers = data["n_layers"]
