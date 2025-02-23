@@ -1,8 +1,9 @@
 import streamlit as st
 import torch
+import torch.nn as nn
 import pickle
 import numpy as np
-from helpers.utils import BERT, SimpleTokenizer, calculate_similarity
+from helpers.utils import BERT, SimpleTokenizer, predict_nli_and_similarity
 
 # Load Model & Tokenizer Data
 st.title("Sentence Similarity with BERT")
@@ -12,6 +13,7 @@ data = pickle.load(open("models/bert-pretrained-data.pkl", "rb"))
 word2id = data["word2id"]
 max_len = data["max_len"]
 max_mask = data["max_mask"]
+d_model = data["d_model"]  # Needed for classifier head definition
 
 # Initialize Tokenizer
 tokenizer = SimpleTokenizer(word2id)
@@ -20,36 +22,35 @@ tokenizer = SimpleTokenizer(word2id)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = BERT()
 
-# Fix Missing Keys in Model Weights
-model.load_state_dict(torch.load("models/sentence_model.pt", map_location=device), strict=False)
+# Load the combined checkpoint
+checkpoint = torch.load("models/sentence_classifier_model.pt", map_location=device)
+
+# Load BERT weights
+model.load_state_dict(checkpoint["bert"], strict=False)
 model.to(device)
 model.eval()
 
-# User Input
-st.write("Enter two sentences to compare their similarity:")
-sentence_a = st.text_input("Sentence 1", "Your contribution helped make it possible for us to provide our students with a quality education.")
-sentence_b = st.text_input("Sentence 2", "Your contributions were of no help with our students' education.")
+# Define and Load Classifier Head
+classifier_head = nn.Linear(d_model * 3, 3).to(device)  # 3 classes: Entailment, Neutral, Contradiction
+classifier_head.load_state_dict(checkpoint["classifier_head"])
+classifier_head.eval()
 
-# Compute Similarity on Button Click
-if st.button("Calculate Similarity"):
-    if not sentence_a or not sentence_b:
-        st.warning("Please enter both sentences!")
-        st.stop()
+# User Interface
+st.write("Enter a **premise** and a **hypothesis**, and the model will predict the relationship between them.")
+premise = st.text_input("Premise", "A man is playing a guitar on stage.")
+hypothesis = st.text_input("Hypothesis", "The man is good at music.")
 
-    # Tokenize Sentences & Check for Errors
-    inputs_a = tokenizer.encode(sentence_a)
-    inputs_b = tokenizer.encode(sentence_b)
+if st.button("Predict"):
+    if premise and hypothesis:
+        # Call predict_nli_and_similarity with classifier_head
+        result = predict_nli_and_similarity(model, premise, hypothesis, device, classifier_head)
+        
+        # Display results
+        st.success(f"**NLI Predicted Label:** {result['nli_label']}")
+        st.info(f"**Cosine Similarity Score:** {result['similarity_score']:.4f}")
 
-    if not inputs_a["input_ids"] or not inputs_b["input_ids"]:
-        st.error("Error: Tokenization failed. Check input text!")
-        st.stop()
-    
-    similarity_score = np.array(calculate_similarity(model, tokenizer, sentence_a, sentence_b, device))
-    print("SCORE ###########", similarity_score)
-    #st.success(f"**Cosine Similarity Score:** {similarity_score:.4f}")
-    #print(f"Score: {similarity_score:.2f}")
-    #st.write("Score:", similarity_score)
-    st.markdown("Cosine Similarity Score: " + " ".join(similarity_score[0].astype(str)))
+    else:
+        st.warning("Please enter both a premise and a hypothesis!")
 
 # Footer
 st.write("Built with ❤️ using Streamlit & BERT")
