@@ -11,6 +11,7 @@
 - [How to run](#how-to-run)
 - [Dataset](#dataset)
 - [Model Training](#training)
+- [Evaluation](#evaluation)
 - [Web Application](#application)
 
 ## Student Information
@@ -83,7 +84,7 @@ The application likely provides a user interface where users can:
 3) Cosine similarity is computed between the embeddings.
 4) The NLI classifier predicts whether the hypothesis is `Entailment`, `Neutral`, or `Contradiction`.
 5) Results are displayed instantly, showing both the NLI label and similarity score.
-### Screenshot
+### Screenshots
 ![Webapp1](s1.png)
 ![Webapp2](s2.png)
 ![Webapp3](s3.png)
